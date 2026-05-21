@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPX追体験ビューアー 世界対応版</title>
+<style>
+body {
+  margin: 0;
+  background: #111;
+  color: white;
+  font-family: sans-serif;
+  text-align: center;
+}
+canvas {
+  border: 2px solid #333;
+  background: #222;
+  width: 1000px;
+  height: 800px;
+  max-width: 100%;
+  touch-action: manipulation;
+  box-sizing: border-box;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+@media (max-width: 768px) {
+
+  h2 {
+    font-size: 16px;
+    margin: 4px 0;
+    line-height: 1.2;
+  }
+
+  .controls {
+    width: 100%;
+    padding: 2px 4px;
+    margin: 2px 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 3px;
+  }
+
+  select, button, input {
+    width: auto;
+    max-width: 46vw;
+    font-size: 12px;
+    padding: 4px 6px;
+    margin: 1px;
+    display: inline-block;
+  }
+
+  input[type="file"] {
+    max-width: 92vw;
+    font-size: 11px;
+  }
+
+  .controls p {
+    width: 100%;
+    font-size: 11px;
+    margin: 2px 0;
+    line-height: 1.2;
+  }
+
+  canvas {
+    width: 100vw;
+    height: auto;
+    border-left: none;
+    border-right: none;
+  }
+}
+.controls {
+  margin: 10px;
+}
+select, button, input {
+  font-size: 16px;
+  margin: 4px;
+}
+
+body.dragover::after {
+  content: "GPXファイルをドロップ";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.55);
+  color: white;
+  font-size: 32px;
+  font-weight: bold;
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+
+<h2>GPX追体験ビューアー 世界対応版</h2>
+
+<div class="controls">
+  <input type="file" id="gpxFile" accept=".gpx">
+
+<select id="mapSelect">
+  <option value="osm" selected>世界地図 OpenStreetMap</option>
+  <option value="opentopo">世界地形図 OpenTopoMap</option>
+  <option value="std">日本 標準地図（地理院）</option>
+  <option value="sekishoku">日本 赤色立体地図（地理院）</option>
+  <option value="photo">日本 航空写真（地理院）</option>
+</select>
+
+<select id="zoomSelect">
+  <option value="2">ズーム2 世界</option>
+  <option value="3">ズーム3 大陸</option>
+  <option value="4">ズーム4 広域</option>
+  <option value="5">ズーム5 広域</option>
+  <option value="6">ズーム6 地方</option>
+  <option value="7">ズーム7 地方</option>
+  <option value="8">ズーム8 広め</option>
+  <option value="9">ズーム9 広め</option>
+  <option value="10">ズーム10 中域</option>
+  <option value="11">ズーム11 中域</option>
+  <option value="12">ズーム12 広域</option>
+  <option value="13" selected>ズーム13 標準</option>
+  <option value="14">ズーム14 詳細</option>
+  <option value="15">ズーム15 かなり詳細</option>
+  <option value="16">ズーム16 超詳細</option>
+  <option value="17">ズーム17 街路</option>
+  <option value="18">ズーム18 街路詳細</option>
+</select>
+
+<select id="speedSelect">
+  <option value="9.0">かなり速い</option>
+  <option value="2.0" selected>速い</option>
+  <option value="1.0">普通</option>
+  <option value="0.6">ゆっくり</option>
+  <option value="0.2">観察モード</option>
+</select>
+
+<select id="iconSelect">
+  <option value="🏃" selected>ランナー</option>
+  <option value="🚴">自転車</option>
+  <option value="🚗">自動車</option>
+  <option value="🐎">馬</option>
+　<option value="🥷">ニンジャ</option>
+　<option value="🐉">龍</option>
+</select>
+
+  <button onclick="startGame()">START</button>
+  <button onclick="loadSample()">サンプル再生</button>
+
+  <p>SPACE長押し：停止 / GPXを選んでSTART / GPXドラッグ＆ドロップ対応 / 海外GPXはOpenStreetMap推奨</p>
+</div>
+
+<canvas id="game" width="1000" height="800"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const WIDTH = canvas.width;
+const HEIGHT = canvas.height;
+
+function resizeCanvasDisplay() {
+  const isMobile = window.innerWidth <= 768;
+
+  if (isMobile) {
+    // スマホ表示：画面幅にフィット
+    const displayWidth = window.innerWidth;
+    const displayHeight = displayWidth * 0.9;
+
+    canvas.style.width = displayWidth + "px";
+    canvas.style.height = displayHeight + "px";
+  } else {
+    // PC表示：従来どおり 1000 x 800
+    canvas.style.width = "1000px";
+    canvas.style.height = "800px";
+  }
+}
+
+window.addEventListener("resize", resizeCanvasDisplay);
+window.addEventListener("orientationchange", resizeCanvasDisplay);
+
+
+// 赤色立体地図は13〜14くらいが安定しやすい
+let ZOOM = 13;
+
+const PLAYER_SPEED = 1;
+
+let TILE_TYPE = "osm";
+let speedScale = 2.0;
+
+let points = [];
+let screenPoints = [];
+let events = [];
+
+let playerIndex = 0;
+let playerIcon = "🏃";
+let cumulativeDistances = [];
+let totalDistanceKm = 0;
+let message = "";
+let messageTimer = 0;
+let running = false;
+let spacePressed = false;
+let dynamicSpeed = 1;
+
+document.getElementById("mapSelect").addEventListener("change", e => {
+  TILE_TYPE = e.target.value;
+
+  Object.keys(tileCache).forEach(k => delete tileCache[k]);
+
+  updateZoomOptions();
+
+  if (points.length >= 2) {
+    setupRoute();   // ←これ追加（重要）
+  }
+});
+
+document.getElementById("speedSelect").addEventListener("change", e => {
+  speedScale = parseFloat(e.target.value);
+});
+
+document.getElementById("iconSelect").addEventListener("change", e => {
+  playerIcon = e.target.value;
+});
+  updateZoomOptions(); // ←これ追加
+
+document.addEventListener("keydown", e => {
+  if (e.code === "Space") spacePressed = true;
+});
+
+document.addEventListener("keyup", e => {
+  if (e.code === "Space") spacePressed = false;
+});
+
+function getTileUrl() {
+  if (TILE_TYPE === "osm") {
+    return "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+  } else if (TILE_TYPE === "opentopo") {
+    return "https://tile.opentopomap.org/{z}/{x}/{y}.png";
+  } else if (TILE_TYPE === "std") {
+    return "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png";
+  } else if (TILE_TYPE === "sekishoku") {
+    return "https://cyberjapandata.gsi.go.jp/xyz/sekishoku/{z}/{x}/{y}.png";
+  } else if (TILE_TYPE === "photo") {
+    return "https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg";
+  }
+
+  return "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+}
+
+function getTileLabel() {
+  if (TILE_TYPE === "osm") return "OpenStreetMap";
+  if (TILE_TYPE === "opentopo") return "OpenTopoMap";
+  if (TILE_TYPE === "std") return "地理院 標準地図";
+  if (TILE_TYPE === "sekishoku") return "地理院 赤色立体地図";
+  if (TILE_TYPE === "photo") return "地理院 航空写真";
+  return TILE_TYPE;
+}
+
+function isJapanArea() {
+  if (points.length === 0) return true;
+
+  const lats = points.map(p => p.lat);
+  const lons = points.map(p => p.lon);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLon = Math.min(...lons);
+  const maxLon = Math.max(...lons);
+
+  // 日本周辺の大まかな範囲。離島・航路も少し余裕を持たせる。
+  return minLat >= 20 && maxLat <= 46.5 && minLon >= 122 && maxLon <= 154;
+}
+
+function autoSwitchMapForArea() {
+  const selected = document.getElementById("mapSelect").value;
+  const japanOnly = ["std", "sekishoku", "photo"];
+
+  if (points.length >= 2 && japanOnly.includes(selected) && !isJapanArea()) {
+    TILE_TYPE = "osm";
+    document.getElementById("mapSelect").value = "osm";
+    Object.keys(tileCache).forEach(k => delete tileCache[k]);
+    return true;
+  }
+
+  return false;
+}
+
+function updateZoomOptions() {
+  const zoomSelect = document.getElementById("zoomSelect");
+
+  let minZ = 2;
+  let maxZ = 18;
+
+  if (TILE_TYPE === "sekishoku") {
+    // 赤色立体地図は高ズームで黒タイルになりやすいため制限
+    minZ = 12;
+    maxZ = 14;
+  } else if (TILE_TYPE === "std" || TILE_TYPE === "photo") {
+    // 地理院系は国内向け。従来どおり12〜16を基本にする
+    minZ = 12;
+    maxZ = 16;
+  } else if (TILE_TYPE === "opentopo") {
+    // OpenTopoMapは高ズーム側が弱い場合があるので控えめ
+    minZ = 2;
+    maxZ = 17;
+  } else {
+    // OSMは世界対応
+    minZ = 2;
+    maxZ = 18;
+  }
+
+  for (let option of zoomSelect.options) {
+    const z = parseInt(option.value);
+    option.disabled = (z < minZ || z > maxZ);
+  }
+
+  if (ZOOM < minZ) {
+    ZOOM = minZ;
+    zoomSelect.value = String(ZOOM);
+  }
+
+  if (ZOOM > maxZ) {
+    ZOOM = maxZ;
+    zoomSelect.value = String(ZOOM);
+  }
+}
+
+document.getElementById("zoomSelect").addEventListener("change", e => {
+  ZOOM = parseInt(e.target.value);
+
+  Object.keys(tileCache).forEach(k => delete tileCache[k]);
+
+  if (points.length >= 2) {
+    setupRoute();
+  }
+});
+
+function formatTime(date) {
+  if (!date) return "--:--:--";
+
+  const h = String(date.getHours()).padStart(2, "0");
+  const m = String(date.getMinutes()).padStart(2, "0");
+  const s = String(date.getSeconds()).padStart(2, "0");
+
+  return `${h}:${m}:${s}`;
+}
+
+function calcDistanceKm(p1, p2) {
+  const R = 6371;
+  const lat1 = p1.lat * Math.PI / 180;
+  const lat2 = p2.lat * Math.PI / 180;
+  const dLat = (p2.lat - p1.lat) * Math.PI / 180;
+  const dLon = (p2.lon - p1.lon) * Math.PI / 180;
+
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) *
+    Math.sin(dLon / 2) ** 2;
+
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function calcCumulativeDistances() {
+  cumulativeDistances = [0];
+
+  for (let i = 1; i < points.length; i++) {
+    cumulativeDistances[i] = cumulativeDistances[i - 1] + calcDistanceKm(points[i - 1], points[i]);
+  }
+
+  totalDistanceKm = cumulativeDistances[cumulativeDistances.length - 1] || 0;
+}
+
+function lonLatToPixel(lon, lat, z) {
+  const latRad = lat * Math.PI / 180;
+  const n = Math.pow(2, z);
+
+  const x = (lon + 180) / 360 * n * 256;
+  const y =
+    (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) /
+    2 * n * 256;
+
+  return { x, y };
+}
+
+function pixelToTile(px, py) {
+  return {
+    x: Math.floor(px / 256),
+    y: Math.floor(py / 256)
+  };
+}
+
+function loadTile(z, x, y) {
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.referrerPolicy = "no-referrer";
+
+  const n = Math.pow(2, z);
+
+  // 世界地図は経度方向に一周するため、xを折り返す
+  let wrappedX = ((x % n) + n) % n;
+
+  // 北極・南極側に外れたタイルは存在しない
+  if (y < 0 || y >= n) {
+    img.src = "";
+    return img;
+  }
+
+  const url = getTileUrl()
+    .replace("{z}", z)
+    .replace("{x}", wrappedX)
+    .replace("{y}", y);
+
+  img.onerror = () => {
+    // タイル欠け時は透明のままにする
+  };
+
+  img.src = url;
+  return img;
+}
+
+const tileCache = {};
+
+function getTile(z, x, y) {
+  const key = `${TILE_TYPE}_${z}_${x}_${y}`;
+
+  if (!tileCache[key]) {
+    tileCache[key] = loadTile(z, x, y);
+  }
+
+  return tileCache[key];
+}
+
+function parseGpx(text) {
+  const xml = new DOMParser().parseFromString(text, "application/xml");
+  const trkpts = [...xml.getElementsByTagName("trkpt")];
+
+  return trkpts.map(p => {
+    const lat = parseFloat(p.getAttribute("lat"));
+    const lon = parseFloat(p.getAttribute("lon"));
+
+    const eleNode = p.getElementsByTagName("ele")[0];
+    const timeNode = p.getElementsByTagName("time")[0];
+
+    return {
+      lat,
+      lon,
+      ele: eleNode ? parseFloat(eleNode.textContent) : 0,
+      time: timeNode ? new Date(timeNode.textContent) : null
+    };
+  });
+}
+
+function setupRoute() {
+  calcCumulativeDistances();
+
+  screenPoints = points.map(p => {
+    return lonLatToPixel(p.lon, p.lat, ZOOM);
+  });
+
+  makeEvents();
+}
+
+function makeEvents() {
+  events = [];
+
+  for (let i = 1; i < points.length; i++) {
+    if (points[i].time && points[i - 1].time) {
+      const dt = (points[i].time - points[i - 1].time) / 1000;
+
+      if (dt > 30) {
+        events.push({ index: i, message: "観察ポイント：ここで停止しました" });
+      }
+    }
+  }
+
+  const filtered = [];
+  let last = -999;
+
+  for (const e of events) {
+    if (e.index - last > 100) {
+      filtered.push(e);
+      last = e.index;
+    }
+  }
+
+  events = filtered;
+}
+
+function drawMap(cameraX, cameraY) {
+  const startTile = pixelToTile(cameraX, cameraY);
+  const endTile = pixelToTile(cameraX + WIDTH, cameraY + HEIGHT);
+
+  for (let tx = startTile.x; tx <= endTile.x; tx++) {
+    for (let ty = startTile.y; ty <= endTile.y; ty++) {
+      const img = getTile(ZOOM, tx, ty);
+
+      const dx = tx * 256 - cameraX;
+      const dy = ty * 256 - cameraY;
+
+      try {
+        ctx.drawImage(img, dx, dy, 256, 256);
+      } catch (e) {
+        // 読み込み前は描画しない
+      }
+    }
+  }
+}
+
+function camPos(p, cameraX, cameraY) {
+  return {
+    x: p.x - cameraX,
+    y: p.y - cameraY
+  };
+}
+
+function drawText(text, x, y, size = 22, color = "white") {
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+
+  ctx.fillStyle = color;
+  ctx.font = `${size}px sans-serif`;
+  ctx.fillText(text, x, y);
+}
+
+function update() {
+  if (!running) return;
+
+  if (!spacePressed) {
+    let i = Math.floor(playerIndex);
+
+    if (i < points.length - 1 && points[i].time && points[i + 1].time) {
+      let dt = (points[i + 1].time - points[i].time) / 1000;
+
+      if (dt <= 0) dt = 1;
+      if (dt > 10) dt = 10;
+
+      dynamicSpeed = (1 / dt * 5) * speedScale;
+    } else {
+      dynamicSpeed = 1 * speedScale;
+    }
+
+    playerIndex += dynamicSpeed;
+  }
+
+  if (playerIndex >= screenPoints.length - 1) {
+    playerIndex = screenPoints.length - 1;
+  }
+
+  for (const e of events) {
+    if (Math.abs(playerIndex - e.index) < Math.max(dynamicSpeed, 1)) {
+      message = e.message;
+      messageTimer = 90;
+
+    }
+  }
+
+  if (messageTimer > 0) messageTimer--;
+
+  if (playerIndex >= screenPoints.length - 1) {
+    running = false;
+    message = "GOAL！追体験完了";
+    messageTimer = 9999;
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+  if (screenPoints.length === 0) {
+    drawText("GPXファイルを選んでSTARTしてください", 300, 380, 26);
+    return;
+  }
+
+  const player = screenPoints[Math.floor(playerIndex)];
+
+  let cameraX = player.x - WIDTH / 2;
+  let cameraY = player.y - HEIGHT / 2;
+
+  drawMap(cameraX, cameraY);
+
+  // ルート全体
+  ctx.strokeStyle = "rgb(70,70,70)";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+
+  screenPoints.forEach((p, i) => {
+    const cp = camPos(p, cameraX, cameraY);
+
+    if (i === 0) ctx.moveTo(cp.x, cp.y);
+    else ctx.lineTo(cp.x, cp.y);
+  });
+
+  ctx.stroke();
+
+  // 通過済みルート
+  ctx.strokeStyle = "rgb(0,120,255)";
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+
+  for (let i = 0; i <= Math.floor(playerIndex); i++) {
+    const cp = camPos(screenPoints[i], cameraX, cameraY);
+
+    if (i === 0) ctx.moveTo(cp.x, cp.y);
+    else ctx.lineTo(cp.x, cp.y);
+  }
+
+  ctx.stroke();
+
+  // スタート
+  const start = camPos(screenPoints[0], cameraX, cameraY);
+  ctx.fillStyle = "rgb(0,180,60)";
+  ctx.beginPath();
+  ctx.arc(start.x, start.y, 10, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ゴール
+  const goal = camPos(screenPoints[screenPoints.length - 1], cameraX, cameraY);
+  ctx.fillStyle = "rgb(230,180,0)";
+  ctx.beginPath();
+  ctx.arc(goal.x, goal.y, 12, 0, Math.PI * 2);
+  ctx.fill();
+
+  // プレイヤー（ラン）
+  const pp = camPos(player, cameraX, cameraY);
+
+  ctx.font = "28px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(playerIcon, pp.x, pp.y);
+
+  // UI
+  ctx.fillStyle = "rgba(0,0,0,0.2)";
+  ctx.fillRect(10, 10, 390, 165);
+
+  const progress = Math.floor(playerIndex / (screenPoints.length - 1) * 100);
+  const i = Math.floor(playerIndex);
+  const currentTime = points[i]?.time;
+
+  const currentDistanceKm = cumulativeDistances[i] || 0;
+
+  drawText(`進行率: ${progress}%`, 25, 40);
+  drawText(`走行距離: ${currentDistanceKm.toFixed(2)} / ${totalDistanceKm.toFixed(2)} km`, 25, 70);
+  drawText("SPACE長押し：停止", 25, 100);
+  drawText(`時刻: ${formatTime(currentTime)}`, 25, 130, 22, "white");
+  drawText(`地図: ${getTileLabel()} / Z${ZOOM}`, 25, 160, 18, "white");
+
+  // タイル出典メモ
+  ctx.textAlign = "right";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = "rgba(255,255,255,0.75)";
+  ctx.font = "12px sans-serif";
+  const attr = (TILE_TYPE === "osm")
+    ? "© OpenStreetMap contributors"
+    : (TILE_TYPE === "opentopo")
+      ? "© OpenTopoMap / OpenStreetMap contributors"
+      : "地理院タイル";
+  ctx.fillText(attr, WIDTH - 10, HEIGHT - 12);
+
+  // イベント表示
+  if (messageTimer > 0) {
+    ctx.fillStyle = "rgba(0,0,0,0.2)";
+    ctx.fillRect(220, HEIGHT - 80, 500, 50);
+
+    drawText(message, 240, HEIGHT - 45, 18, "rgb(255,230,120)");
+  }
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function loadSample() {
+  fetch("20260502.gpx")
+    .then(res => res.text())
+    .then(text => {
+      points = parseGpx(text);
+
+      setupRoute();
+
+      playerIndex = 0;
+      playerIcon = document.getElementById("iconSelect").value;
+      message = "";
+      messageTimer = 0;
+      running = true;
+    });
+}
+
+
+function loadGpxFromFile(file) {
+  if (!file) {
+    alert("GPXファイルを選んでください");
+    return;
+  }
+
+  if (!file.name.toLowerCase().endsWith(".gpx")) {
+    alert("GPXファイルを選んでください");
+    return;
+  }
+
+  TILE_TYPE = document.getElementById("mapSelect").value;
+  speedScale = parseFloat(document.getElementById("speedSelect").value);
+  playerIcon = document.getElementById("iconSelect").value;
+  ZOOM = parseInt(document.getElementById("zoomSelect").value);
+
+  Object.keys(tileCache).forEach(k => delete tileCache[k]);
+
+  const reader = new FileReader();
+
+  reader.onload = e => {
+    points = parseGpx(e.target.result);
+
+    if (points.length < 2) {
+      alert("GPXポイントが少なすぎます");
+      return;
+    }
+
+    const switched = autoSwitchMapForArea();
+    updateZoomOptions();
+    setupRoute();
+
+    playerIndex = 0;
+    playerIcon = document.getElementById("iconSelect").value;
+    message = switched ? "海外GPXのため、OpenStreetMapに自動切替" : "";
+    messageTimer = switched ? 180 : 0;
+    running = true;
+  };
+
+  reader.readAsText(file);
+}
+
+document.getElementById("gpxFile").addEventListener("change", e => {
+  const file = e.target.files[0];
+  if (file) loadGpxFromFile(file);
+});
+
+window.addEventListener("dragover", e => {
+  e.preventDefault();
+  document.body.classList.add("dragover");
+});
+
+window.addEventListener("dragleave", e => {
+  document.body.classList.remove("dragover");
+});
+
+window.addEventListener("drop", e => {
+  e.preventDefault();
+  document.body.classList.remove("dragover");
+
+  const file = e.dataTransfer.files[0];
+  loadGpxFromFile(file);
+});
+
+
+function startGame() {
+  const file = document.getElementById("gpxFile").files[0];
+  loadGpxFromFile(file);
+}
+
+function loadSample() {
+  fetch("20260502.gpx")
+    .then(res => {
+      if (!res.ok) {
+        throw new Error("20260502.gpx が見つかりません");
+      }
+      return res.text();
+    })
+    .then(text => {
+      points = parseGpx(text);
+
+      if (points.length < 2) {
+        alert("サンプルGPXが不正です");
+        return;
+      }
+
+      setupRoute();
+
+      playerIndex = 0;
+      playerIcon = document.getElementById("iconSelect").value;
+      message = "";
+      messageTimer = 0;
+      running = true;
+    })
+    .catch(err => {
+      alert("サンプルGPXを読み込めません: " + err.message);
+      console.error(err);
+    });
+}
+resizeCanvasDisplay();
+loop();
+
+window.onload = () => {
+  updateZoomOptions();
+  loadSample();
+};
+
+</script>
+
+</body>
+</html>

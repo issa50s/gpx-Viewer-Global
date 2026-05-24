@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GPX追体験ビューアー 世界対応版</title>
+<title>GPX Replay Viewer - Global Edition</title>
 <style>
 body {
   margin: 0;
@@ -85,7 +85,7 @@ select, button, input {
 }
 
 body.dragover::after {
-  content: "GPXファイルをドロップ";
+  content: attr(data-drop-text);
   position: fixed;
   inset: 0;
   z-index: 9999;
@@ -100,67 +100,159 @@ body.dragover::after {
 }
 </style>
 </head>
-<body>
+<body data-lang="en" data-drop-text="Drop GPX file here">
 
-<h2>GPX追体験ビューアー 世界対応版</h2>
+<h2 id="appTitle">GPX Replay Viewer - Global Edition</h2>
 
 <div class="controls">
+  <select id="langSelect" aria-label="Language">
+    <option value="en" selected>English</option>
+    <option value="ja">日本語</option>
+  </select>
+
   <input type="file" id="gpxFile" accept=".gpx">
 
 <select id="mapSelect">
-  <option value="osm" selected>世界地図 OpenStreetMap</option>
-  <option value="opentopo">世界地形図 OpenTopoMap</option>
-  <option value="std">日本 標準地図（地理院）</option>
-  <option value="sekishoku">日本 赤色立体地図（地理院）</option>
-  <option value="photo">日本 航空写真（地理院）</option>
+  <option value="osm" selected></option>
+  <option value="opentopo"></option>
+  <option value="std"></option>
+  <option value="sekishoku"></option>
+  <option value="photo"></option>
 </select>
 
 <select id="zoomSelect">
-  <option value="2">ズーム2 世界</option>
-  <option value="3">ズーム3 大陸</option>
-  <option value="4">ズーム4 広域</option>
-  <option value="5">ズーム5 広域</option>
-  <option value="6">ズーム6 地方</option>
-  <option value="7">ズーム7 地方</option>
-  <option value="8">ズーム8 広め</option>
-  <option value="9">ズーム9 広め</option>
-  <option value="10">ズーム10 中域</option>
-  <option value="11">ズーム11 中域</option>
-  <option value="12">ズーム12 広域</option>
-  <option value="13" selected>ズーム13 標準</option>
-  <option value="14">ズーム14 詳細</option>
-  <option value="15">ズーム15 かなり詳細</option>
-  <option value="16">ズーム16 超詳細</option>
-  <option value="17">ズーム17 街路</option>
-  <option value="18">ズーム18 街路詳細</option>
+  <option value="2"></option>
+  <option value="3"></option>
+  <option value="4"></option>
+  <option value="5"></option>
+  <option value="6"></option>
+  <option value="7"></option>
+  <option value="8"></option>
+  <option value="9"></option>
+  <option value="10"></option>
+  <option value="11"></option>
+  <option value="12"></option>
+  <option value="13" selected></option>
+  <option value="14"></option>
+  <option value="15"></option>
+  <option value="16"></option>
+  <option value="17"></option>
+  <option value="18"></option>
 </select>
 
 <select id="speedSelect">
-  <option value="9.0">かなり速い</option>
-  <option value="2.0" selected>速い</option>
-  <option value="1.0">普通</option>
-  <option value="0.6">ゆっくり</option>
-  <option value="0.2">観察モード</option>
+  <option value="9.0"></option>
+  <option value="2.0" selected></option>
+  <option value="1.0"></option>
+  <option value="0.6"></option>
+  <option value="0.2"></option>
 </select>
 
 <select id="iconSelect">
-  <option value="🏃" selected>ランナー</option>
-  <option value="🚴">自転車</option>
-  <option value="🚗">自動車</option>
-  <option value="🐎">馬</option>
-　<option value="🥷">ニンジャ</option>
-　<option value="🐉">龍</option>
+  <option value="🏃" selected></option>
+  <option value="🚴"></option>
+  <option value="🚗"></option>
+  <option value="🐎"></option>
+  <option value="🥷"></option>
+  <option value="🐉"></option>
 </select>
 
-  <button onclick="startGame()">START</button>
-  <button onclick="loadSample()">サンプル再生</button>
+  <button id="startBtn" onclick="startGame()">START</button>
+  <button id="sampleBtn" onclick="loadSample()">Play sample</button>
 
-  <p>SPACE長押し：停止 / GPXを選んでSTART / GPXドラッグ＆ドロップ対応 / 海外GPXはOpenStreetMap推奨</p>
+  <p id="helpText">Hold SPACE: pause / Select a GPX and START / Drag & drop supported / OpenStreetMap is recommended for GPX outside Japan</p>
 </div>
 
 <canvas id="game" width="1000" height="800"></canvas>
 
 <script>
+const I18N = {
+  en: {
+    title: "GPX Replay Viewer - Global Edition",
+    drop: "Drop GPX file here",
+    start: "START",
+    sample: "Play sample",
+    help: "Hold SPACE: pause / Select a GPX and START / Drag & drop supported / OpenStreetMap is recommended for GPX outside Japan",
+    map: { osm: "World Map - OpenStreetMap", opentopo: "World Topographic Map - OpenTopoMap", std: "Japan Standard Map - GSI", sekishoku: "Japan Red Relief Map - GSI", photo: "Japan Aerial Photo - GSI" },
+    zoom: { 2:"Zoom 2 World", 3:"Zoom 3 Continent", 4:"Zoom 4 Wide area", 5:"Zoom 5 Wide area", 6:"Zoom 6 Region", 7:"Zoom 7 Region", 8:"Zoom 8 Broad", 9:"Zoom 9 Broad", 10:"Zoom 10 Medium", 11:"Zoom 11 Medium", 12:"Zoom 12 Wide", 13:"Zoom 13 Standard", 14:"Zoom 14 Detail", 15:"Zoom 15 More detail", 16:"Zoom 16 Very detailed", 17:"Zoom 17 Street", 18:"Zoom 18 Street detail" },
+    speed: { "9.0":"Very fast", "2.0":"Fast", "1.0":"Normal", "0.6":"Slow", "0.2":"Observation mode" },
+    icon: { "🏃":"Runner", "🚴":"Bicycle", "🚗":"Car", "🐎":"Horse", "🥷":"Ninja", "🐉":"Dragon" },
+    tileLabel: { osm:"OpenStreetMap", opentopo:"OpenTopoMap", std:"GSI Standard Map", sekishoku:"GSI Red Relief Map", photo:"GSI Aerial Photo" },
+    selectGpx: "Please select a GPX file",
+    tooFewPoints: "Not enough GPX points",
+    sampleNotFound: "sample.gpx was not found",
+    invalidSample: "The sample GPX is invalid",
+    sampleLoadError: "Could not load sample GPX: ",
+    waitGpx: "Select a GPX file and press START",
+    observation: "Observation point: stopped here",
+    goal: "GOAL! Replay complete",
+    autoSwitch: "Outside Japan: switched to OpenStreetMap",
+    progress: "Progress",
+    distance: "Distance",
+    holdSpace: "Hold SPACE: pause",
+    time: "Time",
+    mapLabel: "Map",
+    gsiTiles: "GSI Tiles"
+  },
+  ja: {
+    title: "GPX追体験ビューアー 世界対応版",
+    drop: "GPXファイルをドロップ",
+    start: "START",
+    sample: "サンプル再生",
+    help: "SPACE長押し：停止 / GPXを選んでSTART / GPXドラッグ＆ドロップ対応 / 海外GPXはOpenStreetMap推奨",
+    map: { osm: "世界地図 OpenStreetMap", opentopo: "世界地形図 OpenTopoMap", std: "日本 標準地図（地理院）", sekishoku: "日本 赤色立体地図（地理院）", photo: "日本 航空写真（地理院）" },
+    zoom: { 2:"ズーム2 世界", 3:"ズーム3 大陸", 4:"ズーム4 広域", 5:"ズーム5 広域", 6:"ズーム6 地方", 7:"ズーム7 地方", 8:"ズーム8 広め", 9:"ズーム9 広め", 10:"ズーム10 中域", 11:"ズーム11 中域", 12:"ズーム12 広域", 13:"ズーム13 標準", 14:"ズーム14 詳細", 15:"ズーム15 かなり詳細", 16:"ズーム16 超詳細", 17:"ズーム17 街路", 18:"ズーム18 街路詳細" },
+    speed: { "9.0":"かなり速い", "2.0":"速い", "1.0":"普通", "0.6":"ゆっくり", "0.2":"観察モード" },
+    icon: { "🏃":"ランナー", "🚴":"自転車", "🚗":"自動車", "🐎":"馬", "🥷":"ニンジャ", "🐉":"龍" },
+    tileLabel: { osm:"OpenStreetMap", opentopo:"OpenTopoMap", std:"地理院 標準地図", sekishoku:"地理院 赤色立体地図", photo:"地理院 航空写真" },
+    selectGpx: "GPXファイルを選んでください",
+    tooFewPoints: "GPXポイントが少なすぎます",
+    sampleNotFound: "sample.gpx が見つかりません",
+    invalidSample: "サンプルGPXが不正です",
+    sampleLoadError: "サンプルGPXを読み込めません: ",
+    waitGpx: "GPXファイルを選んでSTARTしてください",
+    observation: "観察ポイント：ここで停止しました",
+    goal: "GOAL！追体験完了",
+    autoSwitch: "海外GPXのため、OpenStreetMapに自動切替",
+    progress: "進行率",
+    distance: "走行距離",
+    holdSpace: "SPACE長押し：停止",
+    time: "時刻",
+    mapLabel: "地図",
+    gsiTiles: "地理院タイル"
+  }
+};
+
+let currentLang = "en";
+
+function t(key) {
+  return I18N[currentLang][key] || I18N.en[key] || key;
+}
+
+function updateOptionLabels(selectId, labels) {
+  const select = document.getElementById(selectId);
+  for (const option of select.options) {
+    option.textContent = labels[option.value] || option.value;
+  }
+}
+
+function applyLanguage(lang) {
+  currentLang = lang;
+  document.documentElement.lang = lang;
+  document.body.dataset.lang = lang;
+  document.body.dataset.dropText = t("drop");
+  document.title = t("title");
+  document.getElementById("appTitle").textContent = t("title");
+  document.getElementById("startBtn").textContent = t("start");
+  document.getElementById("sampleBtn").textContent = t("sample");
+  document.getElementById("helpText").textContent = t("help");
+
+  updateOptionLabels("mapSelect", I18N[lang].map);
+  updateOptionLabels("zoomSelect", I18N[lang].zoom);
+  updateOptionLabels("speedSelect", I18N[lang].speed);
+  updateOptionLabels("iconSelect", I18N[lang].icon);
+}
+
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
@@ -229,7 +321,13 @@ document.getElementById("speedSelect").addEventListener("change", e => {
 document.getElementById("iconSelect").addEventListener("change", e => {
   playerIcon = e.target.value;
 });
-  updateZoomOptions(); // ←これ追加
+
+document.getElementById("langSelect").addEventListener("change", e => {
+  applyLanguage(e.target.value);
+});
+
+applyLanguage("en");
+updateZoomOptions();
 
 document.addEventListener("keydown", e => {
   if (e.code === "Space") spacePressed = true;
@@ -256,11 +354,11 @@ function getTileUrl() {
 }
 
 function getTileLabel() {
-  if (TILE_TYPE === "osm") return "OpenStreetMap";
-  if (TILE_TYPE === "opentopo") return "OpenTopoMap";
-  if (TILE_TYPE === "std") return "地理院 標準地図";
-  if (TILE_TYPE === "sekishoku") return "地理院 赤色立体地図";
-  if (TILE_TYPE === "photo") return "地理院 航空写真";
+  if (TILE_TYPE === "osm") return I18N[currentLang].tileLabel.osm;
+  if (TILE_TYPE === "opentopo") return I18N[currentLang].tileLabel.opentopo;
+  if (TILE_TYPE === "std") return I18N[currentLang].tileLabel.std;
+  if (TILE_TYPE === "sekishoku") return I18N[currentLang].tileLabel.sekishoku;
+  if (TILE_TYPE === "photo") return I18N[currentLang].tileLabel.photo;
   return TILE_TYPE;
 }
 
@@ -475,7 +573,7 @@ function makeEvents() {
       const dt = (points[i].time - points[i - 1].time) / 1000;
 
       if (dt > 30) {
-        events.push({ index: i, message: "観察ポイント：ここで停止しました" });
+        events.push({ index: i, message: t("observation") });
       }
     }
   }
@@ -565,7 +663,7 @@ function update() {
 
   if (playerIndex >= screenPoints.length - 1) {
     running = false;
-    message = "GOAL！追体験完了";
+    message = t("goal");
     messageTimer = 9999;
   }
 }
@@ -574,7 +672,7 @@ function draw() {
   ctx.clearRect(0, 0, WIDTH, HEIGHT);
 
   if (screenPoints.length === 0) {
-    drawText("GPXファイルを選んでSTARTしてください", 300, 380, 26);
+    drawText(t("waitGpx"), 300, 380, 26);
     return;
   }
 
@@ -645,11 +743,11 @@ function draw() {
 
   const currentDistanceKm = cumulativeDistances[i] || 0;
 
-  drawText(`進行率: ${progress}%`, 25, 40);
-  drawText(`走行距離: ${currentDistanceKm.toFixed(2)} / ${totalDistanceKm.toFixed(2)} km`, 25, 70);
-  drawText("SPACE長押し：停止", 25, 100);
-  drawText(`時刻: ${formatTime(currentTime)}`, 25, 130, 22, "white");
-  drawText(`地図: ${getTileLabel()} / Z${ZOOM}`, 25, 160, 18, "white");
+  drawText(`${t("progress")}: ${progress}%`, 25, 40);
+  drawText(`${t("distance")}: ${currentDistanceKm.toFixed(2)} / ${totalDistanceKm.toFixed(2)} km`, 25, 70);
+  drawText(t("holdSpace"), 25, 100);
+  drawText(`${t("time")}: ${formatTime(currentTime)}`, 25, 130, 22, "white");
+  drawText(`${t("mapLabel")}: ${getTileLabel()} / Z${ZOOM}`, 25, 160, 18, "white");
 
   // タイル出典メモ
   ctx.textAlign = "right";
@@ -660,7 +758,7 @@ function draw() {
     ? "© OpenStreetMap contributors"
     : (TILE_TYPE === "opentopo")
       ? "© OpenTopoMap / OpenStreetMap contributors"
-      : "地理院タイル";
+      : t("gsiTiles");
   ctx.fillText(attr, WIDTH - 10, HEIGHT - 12);
 
   // イベント表示
@@ -697,12 +795,12 @@ function loadSample() {
 
 function loadGpxFromFile(file) {
   if (!file) {
-    alert("GPXファイルを選んでください");
+    alert(t("selectGpx"));
     return;
   }
 
   if (!file.name.toLowerCase().endsWith(".gpx")) {
-    alert("GPXファイルを選んでください");
+    alert(t("selectGpx"));
     return;
   }
 
@@ -719,7 +817,7 @@ function loadGpxFromFile(file) {
     points = parseGpx(e.target.result);
 
     if (points.length < 2) {
-      alert("GPXポイントが少なすぎます");
+      alert(t("tooFewPoints"));
       return;
     }
 
@@ -729,7 +827,7 @@ function loadGpxFromFile(file) {
 
     playerIndex = 0;
     playerIcon = document.getElementById("iconSelect").value;
-    message = switched ? "海外GPXのため、OpenStreetMapに自動切替" : "";
+    message = switched ? t("autoSwitch") : "";
     messageTimer = switched ? 180 : 0;
     running = true;
   };
@@ -769,7 +867,7 @@ function loadSample() {
   fetch("sample.gpx")
     .then(res => {
       if (!res.ok) {
-        throw new Error("sample.gpx が見つかりません");
+        throw new Error(t("sampleNotFound"));
       }
       return res.text();
     })
@@ -777,7 +875,7 @@ function loadSample() {
       points = parseGpx(text);
 
       if (points.length < 2) {
-        alert("サンプルGPXが不正です");
+        alert(t("invalidSample"));
         return;
       }
 
@@ -790,7 +888,7 @@ function loadSample() {
       running = true;
     })
     .catch(err => {
-      alert("サンプルGPXを読み込めません: " + err.message);
+      alert(t("sampleLoadError") + err.message);
       console.error(err);
     });
 }
@@ -798,6 +896,7 @@ resizeCanvasDisplay();
 loop();
 
 window.onload = () => {
+  applyLanguage(document.getElementById("langSelect").value);
   updateZoomOptions();
   loadSample();
 };
